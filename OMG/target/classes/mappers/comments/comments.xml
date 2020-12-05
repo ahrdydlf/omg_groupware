@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.omg.comments">
+	
+	<!-- com.omg.comments.doInsert -->
+	<insert id="doInsert" parameterType="CommentsVO">
+		INSERT INTO comments (                      
+								comment_num,           
+								board_seq,             
+								up_num,                
+								contents,              
+								reg_dt,                
+								reg_id,                
+								mod_dt,                
+								mod_id                 
+							  ) VALUES (               
+							  	COMMENTS_SEQ.NEXTVAL,  
+							  	#{boardSeq},                     
+							  	#{upNum},                     
+							  	#{contents},                     
+							  	SYSDATE,               
+							  	#{regId},                     
+							  	SYSDATE,               
+							  	#{modId}                      
+							  )                        
+	</insert>
+	
+	<!-- com.omg.comments.doDelete -->
+	<delete id="doDelete" parameterType="CommentsVO">
+		DELETE FROM comments   
+		WHERE comment_num = #{commentNum}
+		OR up_num = #{commentNum} 
+	</delete>
+	
+	<!-- com.omg.comments.doDeleteOne -->
+	<delete id="doDeleteOne" parameterType="CommentsVO">
+		DELETE FROM comments   
+		WHERE comment_num = #{commentNum}  
+	</delete>
+	
+	<!-- com.omg.comments.doCmtCnt -->
+	<select id="doCmtCnt" resultType="int">
+		SELECT count(*)
+		FROM comments
+		WHERE comment_num = #{commentNum}
+		OR up_num = #{commentNum}
+	</select>
+	
+	
+	<!-- com.omg.comments.doUpdate -->
+	<update id="doUpdate" parameterType="CommentsVO">
+		UPDATE comments             
+		SET    contents	 = #{contents},       
+			   mod_dt 	 = SYSDATE, 
+			   mod_id 	 = #{modId}      
+		WHERE comment_num = #{commentNum}      
+	</update>
+	
+	<!-- com.omg.comments.doSelectOne -->
+	<select id="doSelectOne" parameterType="CommentsVO" resultType="CommentsVO">
+		SELECT                                                  
+				comment_num as commentNum,                                       
+				board_seq as boardSeq,                                         
+				up_num upNum,                                            
+				contents,                                          
+				TO_CHAR(reg_dt, 'YYYY-MM-DD HH24MISS') AS regDt,  
+				regId,                                            
+				TO_CHAR(reg_dt, 'YYYY-MM-DD HH24MISS') AS regDt,  
+				modId,                                            
+				1 AS rnum,                                         
+				1 AS totalCnt                                     
+		FROM comments                                      
+		WHERE comment_num = #{commentNum}                             
+	</select>
+	
+	<!-- com.omg.comments.doSelectList -->
+	<select id="doSelectList" parameterType="CommentsVO" resultType="CommentsVO">
+		SELECT  												    
+		    comment_num as commentNum,     									
+		    board_seq as boardSeq,        									
+		    up_num as upNum,        										
+		    contents,     										
+		    DECODE(TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(reg_dt,'YYYYMMDD')            
+		                                             ,TO_CHAR(reg_dt,'HH24:MI')             
+		                                             ,TO_CHAR(reg_dt,'YYYY-MM-DD')) regDt, 
+		    reg_id as regId,                                                                  
+		           DECODE(TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(mod_dt,'YYYYMMDD')            
+		                                             ,TO_CHAR(mod_dt,'HH24:MI')             
+		                                             ,TO_CHAR(mod_dt,'YYYY-MM-DD')) modDt, 
+			mod_id as modId     															
+		FROM        												
+		    comments T1       										
+		    WHERE board_seq = #{boardSeq}         							
+		    START WITH up_num = 0        					
+		    CONNECT BY PRIOR comment_num = up_num        		
+		    ORDER SIBLINGS BY board_seq
+	</select>
+	
+</mapper>

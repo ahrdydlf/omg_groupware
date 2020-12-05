@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.omg.note">
+	<!-- 삭제 -->
+	<delete id="doDelete" parameterType="NoteVO">
+		DELETE FROM note WHERE note_no = #{noteNo}
+						 AND note_div = #{noteDiv}
+						 AND employee_id = #{employeeId}
+	</delete>
+	
+	<!-- 등록 -->
+	<insert id="doInsert" parameterType="NoteVO"> 
+		INSERT INTO note (note_no, note_div, sender_id, sender_nm, receive_div, receive_id,
+						  receive_ref, receive_nm, employee_id, employee_nm, title, contents, up_note)
+		VALUES (#{noteNo}, #{noteDiv}, #{senderId}, #{senderNm}, #{receiveDiv}, #{receiveId},
+				#{receiveRef,jdbcType=VARCHAR}, #{receiveNm}, #{employeeId}, #{employeeNm}, #{title}, #{contents}, #{upNote} )                 
+	</insert>
+	
+	<!-- 단건 조회 -->
+	<select id="doSelectOne" parameterType="NoteVO" resultType="NoteVO" >
+		SELECT note_no as noteNo, note_div as noteDiv, sender_id as senderId, sender_nm as senderNm, receive_div as receiveDiv,
+				receive_id as receiveId, receive_ref as receiveRef, receive_nm as receiveNm, employee_id as employeeId, employee_nm as employeeNm,
+				title, contents, up_note as upNote, read,      	  	     											
+        		--등록일이 당일이면:HH24MI 그렇치 않으면: YYYY-MM-DD   
+        		DECODE(TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(send_dt,'YYYYMMDD'),
+        				TO_CHAR(send_dt,'HH24:MI'),TO_CHAR(send_dt,'YYYY-MM-DD')) sendDt,
+        		DECODE(TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(read_dt,'YYYYMMDD'),
+        				TO_CHAR(read_dt,'HH24:MI'),TO_CHAR(read_dt,'YYYY-MM-DD')) readDt                       
+		FROM note
+		WHERE note_no = #{noteNo}
+		AND note_div = #{noteDiv}
+		AND employee_id = #{employeeId}
+	</select>
+	
+	<!-- 메일 읽음 확인 처리 -->
+	<update id="doUpdateRead" parameterType="NoteVO">
+		UPDATE note SET read = #{read}, read_dt = sysdate
+		WHERE note_no = #{noteNo}
+		AND note_div = #{noteDiv}
+		AND employee_id = #{employeeId}
+	</update>
+	
+	<!-- 메일 삭제(휴지통 이동) -->
+	<update id="doMoveToTrash" parameterType="NoteVO">
+		UPDATE note SET note_div = 3
+		WHERE note_no = #{noteNo}
+		AND note_div = #{noteDiv}
+		AND employee_id = #{employeeId}
+	</update>
+	
+	<!-- 목록 조회 (검색,pagiation 없는 버전. 검색버전 확인되면 지울 예정 -->
+	<select id="doSelectList2" parameterType="NoteVO" resultType="NoteVO" >
+		SELECT note_no as noteNo, note_div as noteDiv, sender_id as senderId, sender_nm as senderNm, receive_div as receiveDiv,
+				receive_id as receiveId, receive_ref as receiveRef, receive_nm as receiveNm, employee_id as employeeId, employee_nm as employeeNm,
+				title, contents, up_note, read,      	  	     											
+        		--등록일이 당일이면:HH24MI 그렇치 않으면: YYYY-MM-DD
+        		DECODE(TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(send_dt,'YYYYMMDD'),
+        				TO_CHAR(send_dt,'HH24:MI'),TO_CHAR(send_dt,'YYYY-MM-DD')) sendDt,
+        		DECODE(TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(read_dt,'YYYYMMDD'),
+        				TO_CHAR(read_dt,'HH24:MI'),TO_CHAR(read_dt,'YYYY-MM-DD')) readDt                       
+		FROM note
+		WHERE note_div = #{noteDiv}
+		AND employee_id = #{employeeId}
+	</select>
+	
+	<sql id="searchCondition">
+		<choose>
+			<when test="1 == noteVO.noteDiv">
+				<choose>
+					<when test="'10' == searchVO.searchDiv">
+						AND receive_id like #{searchVO.searchWord}||'%'
+					</when>
+					<when test="'20' == searchVO.searchDiv">
+						AND receive_nm like #{searchVO.searchWord}||'%'
+					</when>
+				</choose>
+			</when>
+			<when test="2 == noteVO.noteDiv">
+				<choose>
+					<when test="'10' == searchVO.searchDiv">
+						AND sender_id like #{searchVO.searchWord}||'%'
+					</when>
+					<when test="'20' == searchVO.searchDiv">
+						AND sender_nm like #{searchVO.searchWord}||'%'
+					</when>
+				</choose>
+			</when>
+		</choose>
+	</sql>
+	
+	<!-- 목록 조회 -->
+	<select id="doSelectList" parameterType="HashMap" resultType="NoteVO" >
+		SELECT T1.*,T2.*                                                           
+			FROM                                                                        
+				(SELECT B.note_no as noteNo, B.note_div as noteDiv, B.sender_id as senderId, B.sender_nm as senderNm, B.receive_div as receiveDiv,
+						B.receive_id as receiveId, B.receive_ref as receiveRef, B.receive_nm as receiveNm, B.employee_id as employeeId, B.employee_nm as employeeNm,
+						B.title, B.contents, B.up_note, B.read,      	  	     											
+		        		--등록일이 당일이면:HH24MI 그렇치 않으면: YYYY-MM-DD
+		        		DECODE(TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(B.send_dt,'YYYYMMDD'),
+		        				TO_CHAR(B.send_dt,'HH24:MI'),TO_CHAR(B.send_dt,'YYYY-MM-DD')) sendDt,
+		        		DECODE(TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(B.read_dt,'YYYYMMDD'),
+		        				TO_CHAR(B.read_dt,'HH24:MI'),TO_CHAR(B.read_dt,'YYYY-MM-DD')) readDt
+			    FROM
+					(SELECT ROWNUM rnum, A.*                                           
+			        FROM                                                             
+			            (SELECT *                                                      
+			            FROM  note
+			            WHERE note_div = #{noteVO.noteDiv}
+						AND employee_id = #{noteVO.employeeId}
+						--동적 쿼리
+						<include refid="searchCondition" />
+			            ORDER BY send_dt DESC
+						) A                                                                
+			        WHERE ROWNUM <![CDATA[<=]]> (#{searchVO.pageSize} *(#{searchVO.pageNum}-1)+#{searchVO.pageSize})
+					) B                  
+			    WHERE b.rnum <![CDATA[>=]]> (#{searchVO.pageSize} *(#{searchVO.pageNum}-1)+1)
+				)T1                                                                   
+			NATURAL JOIN                                                                
+				(SELECT COUNT(*) totalCnt                                            
+				FROM  note
+				WHERE note_div = #{noteVO.noteDiv}
+				AND employee_id = #{noteVO.employeeId}
+				--동적 쿼리
+				<include refid="searchCondition" />
+				)T2  
+	</select>
+	
+	
+	
+	
+	<select id="bringKey" resultType="int" >
+		SELECT note_seq.nextval FROM dual
+	</select>
+	
+	
+	
+
+</mapper>

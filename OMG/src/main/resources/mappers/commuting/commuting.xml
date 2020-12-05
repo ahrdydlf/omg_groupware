@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.omg.commuting">
+	
+	<!-- com.omg.commuting.doInsert -->
+	<insert id="doInsert" parameterType="Commuting">
+		INSERT INTO commuting (            
+		    seq,                           
+		    employee_id,                   
+		    name,                          
+		    dept_no,                       
+		    attend_time,                   
+		    leave_time,                    
+		    present_state,                 
+		    state,                         
+		    work_time,                     
+		    reg_dt                         
+		) VALUES (                         
+		    #{seq},                             
+		    #{employeeId},                             
+		    #{name},                             
+		    #{deptNo},                             
+		    TO_DATE(#{attendTime},'yyyymmddHH24MISS'), 
+		    TO_DATE(#{leaveTime},'yyyymmddHH24MISS'), 
+		    #{presentStateIntValue},                             
+		    #{stateIntValue},                             
+		    #{workTime},                             
+		    TO_DATE(#{regDt},'yyyymmddHH24MISS')  
+		)                                  
+	</insert>
+	<!-- com.omg.commuting.doInit -->
+	<insert id="doInit">
+		MERGE INTO commuting c
+		USING employee e
+		ON (c.employee_id = e.employee_id AND c.seq = TO_CHAR(sysdate,'yyyy-MM-dd'))
+		WHEN NOT MATCHED THEN
+		INSERT (seq,employee_id,name,dept_no,present_state,state,reg_dt)
+		VALUES (TO_CHAR(sysdate,'yyyy-MM-dd'),
+		       e.employee_id,                                                             
+		       e.name,                                                                    
+		       e.dept_no,                                                                 
+		       0,                                                                       
+		       0,                                                                       
+		       SYSDATE  )                                                          
+	</insert>
+	<!-- com.omg.commuting.doDelete -->
+	<delete id="doDelete" parameterType="Commuting">
+		DELETE FROM commuting 
+		WHERE                 
+		    seq = #{seq}           
+		AND    employee_id = #{employeeId}
+	</delete>
+	<!-- com.omg.commuting.doUpdate -->
+	<update id="doUpdate" parameterType="Commuting">
+		UPDATE commuting               					
+		SET                            					
+		    attend_time = (CASE
+		    				WHEN attend_time is null THEN TO_DATE(#{attendTime},'yyyymmddHH24MISS')
+		    				ELSE attend_time
+		    				END),
+		    leave_time = TO_DATE(#{leaveTime},'yyyymmddHH24MISS'), 
+		    present_state = #{presentStateIntValue},        					
+		    state = #{stateIntValue}                  				                              
+		WHERE                         					
+		       seq = #{seq}                					
+		AND    employee_id = #{employeeId}           				
+	</update>
+	<!-- com.omg.commuting.doUpdateWorkTime -->
+	<update id="doUpdateWorkTime" parameterType="Commuting">
+		UPDATE commuting c                                                                                      		
+		SET work_time = (                                                                                         		
+		               ROUND(((c.leave_time-c.attend_time)*24),1)                                                                                  		
+		            )                                                                                             		
+		WHERE c.seq =#{seq}                                                                                            		
+		AND c.employee_id =#{employeeId}                                                                                      		
+	</update>
+	
+	<!-- com.omg.commuting.doSelectOne -->
+	<select id="doSelectOne" parameterType="Commuting" resultType="Commuting">
+		SELECT                                                                     
+		    seq,                                       								
+		    employee_id as employeeId,                                                           
+		    name,                                                                  
+		    dept_no as deptNo,                                                               
+		    DECODE(TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(attend_time,'YYYYMMDD')     
+						   ,TO_CHAR(attend_time,'HH24:MI')                         
+						   ,TO_CHAR(attend_time,'YYYY-MM-DD HH24:MI')) as attendTime,
+			DECODE(TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(leave_time,'YYYYMMDD')      
+						   ,TO_CHAR(leave_time,'HH24:MI')                          
+						   ,TO_CHAR(leave_time,'YYYY-MM-DD HH24:MI'))  as leaveTime, 
+		    present_state as presentStateIntValue,                                                         
+		    state as stateIntValue,                                                                 
+		    work_time as workTime,                                                             
+		    reg_dt as regDt                                                              
+		FROM                                                                       
+		    commuting c                                                            
+		WHERE c.seq= #{seq}                                                             
+		AND c.employee_id = #{employeeId}                                                       
+	</select>
+	
+	<!-- com.omg.commuting.doSelectList -->
+	<select id="doSelectList"  resultType="Commuting">
+		SELECT C.*                                                                       
+		FROM                                                                             
+		  (                                                                              
+				SELECT B.rn as num,                                                           
+					 B.seq as seq,                                                              
+					 B.employee_id as employeeId,                                                      
+					 B.name,                                                             
+					 B.dept_no as deptNo,                                                          
+					TO_CHAR(B.attend_time,'HH24:MI') as attendTime,
+					TO_CHAR(B.leave_time,'HH24:MI') as leaveTime,    
+					 B.present_state as presentStateIntValue,                                                    
+					 B.state as stateIntValue,                                                            
+					 B.work_time as workTime,                                                        
+					 B.reg_dt as regDt,
+					 SUM(B.work_time) OVER(PARTITION BY B.employee_id ORDER BY B.work_time) as totalCnt                      
+				FROM (                                                                   
+					  SELECT rownum rn, A.*                                                
+					  FROM(                                                                  
+						  SELECT *                                                           
+						  FROM  commuting
+						  WHERE seq = TO_CHAR(sysdate,'YYYY-MM-DD')
+						  <if test="dept_no != 0 and dept_no != 10000">AND dept_no = #{dept_no}</if>
+			              )A 
+			    	  WHERE                                                                                  
+					  <![CDATA[rownum <= #{pageNum} * #{amount}]]>  
+					)B                                                                           
+				<![CDATA[WHERE rn > (#{pageNum} - 1) * #{amount}]]>                          					 
+		 ) C                                                                                             
+	</select>
+	
+	<select id="getTotalCount" resultType="int">
+		SELECT count(*)
+		FROM commuting
+		WHERE seq = TO_CHAR(sysdate,'YYYY-MM-DD')
+		<if test="dept_no != 0 and dept_no != 10000">AND dept_no = #{dept_no}</if>
+	</select>
+	
+	<!-- com.omg.commuting.doSelectMyList -->
+	<select id="doSelectMyList" parameterType="Commuting" resultType="Commuting">
+		SELECT                                                                     
+		    seq,                                       								
+		    employee_id as employeeId,                                                           
+		    name,                                                                  
+		    dept_no as deptNo,                                                               
+			TO_CHAR(attend_time,'HH24:MI') as attendTime,
+			TO_CHAR(leave_time,'HH24:MI') as leaveTime,
+		    present_state as presentStateIntValue,                                                         
+		    state as stateIntValue,                                                                 
+		    work_time as workTime,                                                             
+		    reg_dt as regDt,
+		    SUM(work_time) OVER(ORDER BY reg_dt ) as totalCnt   
+		FROM                                                                       
+		    commuting c                                                            
+		WHERE employee_id = #{employeeId}
+		AND seq like #{seq} ||'%' 
+		ORDER BY reg_dt
+	</select>
+	
+	
+	
+	<!-- com.omg.commuting.getAll -->
+	<select id="getAll" resultType="Commuting">
+		SELECT                                                                     
+		    seq,                                       								
+		    employee_id as employeeId,                                                           
+		    name,                                                                  
+		    dept_no as deptNo,                                                               
+			TO_CHAR(attend_time,'HH24:MI') as attendTime,
+			TO_CHAR(leave_time,'HH24:MI') as leaveTime,
+		    present_state as presentStateIntValue,                                                         
+		    state as stateIntValue,                                                                 
+		    work_time as workTime,                                                             
+		    reg_dt as regDt,
+		    SUM(work_time) OVER(PARTITION BY employee_id ORDER BY work_time) as totalCnt   
+		FROM                                                                       
+		    commuting   
+		ORDER BY dept_no                    
+	</select>
+	
+	
+	
+</mapper>
+ 
